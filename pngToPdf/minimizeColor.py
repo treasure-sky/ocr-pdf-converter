@@ -3,14 +3,19 @@ from PIL import Image
 import io
 import os
 import sys
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def process_image(png_file):
+def process_image(png_file, idx, total_files):
     # 이미지 로드 및 팔레트 변환
     image = Image.open(png_file)
     # 컬러팔레트 크기 조정
     image = image.convert('P', palette=Image.ADAPTIVE, colors=16)
     image = image.convert('RGB')
+
+    # 진행률 출력 (이미지 처리 중)
+    progress = (idx + 1) / total_files * 50  # 처리 중 50%까지 진행률 반영
+    sys.stdout.write(f"\r이미지 처리 진행률: {progress:.2f}% 완료")
+    sys.stdout.flush()
 
     # 이미지 압축 및 PNG로 저장
     img_byte_arr = io.BytesIO()
@@ -31,7 +36,7 @@ def png_to_pdf(output_pdf_path):
     # 이미지 병렬 처리
     results = [None] * total_files
     with ThreadPoolExecutor() as executor:
-        future_to_index = {executor.submit(process_image, png_file): idx for idx, png_file in enumerate(png_files)}
+        future_to_index = {executor.submit(process_image, png_file, idx, total_files): idx for idx, png_file in enumerate(png_files)}
 
         for future in as_completed(future_to_index):
             idx = future_to_index[future]
@@ -52,9 +57,9 @@ def png_to_pdf(output_pdf_path):
         img_rect = fitz.Rect(0, 0, width, height)
         new_page.insert_image(img_rect, stream=img_byte_arr)
 
-        # 진행률 출력
-        progress = (idx + 1) / total_files * 100
-        sys.stdout.write(f"\r진행률: {progress:.2f}% 완료")
+        # 진행률 출력 (PDF 생성 중)
+        progress = 50 + ((idx + 1) / total_files * 50)  # 이미지 처리 후 PDF 생성 진행률 반영
+        sys.stdout.write(f"\rPDF 생성 진행률: {progress:.2f}% 완료")
         sys.stdout.flush()
 
     # 결과를 새로운 PDF로 저장
